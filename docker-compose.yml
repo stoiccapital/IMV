@@ -1,0 +1,58 @@
+x-app-environment: &app-environment
+  NODE_ENV: production
+  PORT: 3000
+  DATABASE_URL: postgresql://imv:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/imv_kostenmanager
+  SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set}
+  APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+  CATALOG_BOOTSTRAP_FILE: ${CATALOG_BOOTSTRAP_FILE:-}
+
+x-app-base: &app-base
+  build: .
+  environment: *app-environment
+  depends_on:
+    db:
+      condition: service_healthy
+  volumes:
+    - ./private-import:/private-import:ro
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: imv_kostenmanager
+      POSTGRES_USER: imv
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U imv -d imv_kostenmanager"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  app:
+    <<: *app-base
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  seed:
+    <<: *app-base
+    environment:
+      <<: *app-environment
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@localhost}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD must be set}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Lokale Administration}
+    command: ["node", "--experimental-transform-types", "src/server/scripts/seed.ts"]
+    profiles: ["setup"]
+
+  catalog-import:
+    <<: *app-base
+    command: ["node", "--experimental-transform-types", "src/server/scripts/import-catalog.ts"]
+    profiles: ["import"]
+
+volumes:
+  postgres_data:

@@ -1,0 +1,52 @@
+name: Qualitätssicherung
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typen, Tests und Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: pglite://:memory:
+      SESSION_SECRET: ci-session-secret-with-at-least-thirty-two-characters
+      APP_ORIGIN: http://localhost:5173
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: pnpm einrichten
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+          run_install: false
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Abhängigkeiten installieren
+        run: pnpm install --frozen-lockfile
+
+      - name: Typen prüfen
+        run: pnpm typecheck
+
+      - name: Tests ausführen
+        run: pnpm test
+
+      - name: Produktions-Build erstellen
+        run: pnpm build
