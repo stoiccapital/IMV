@@ -1,0 +1,34 @@
+databases:
+  - name: imv-db
+    plan: free
+    region: frankfurt
+    databaseName: imv_kostenmanager
+    user: imv
+
+services:
+  - type: web
+    name: imv-kostenmanager
+    runtime: docker
+    region: frankfurt
+    plan: free
+    healthCheckPath: /api/health
+    preDeployCommand: "node --experimental-transform-types src/server/db/migrate.ts && node --experimental-transform-types src/server/scripts/seed.ts"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: imv-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: APP_ORIGIN
+        sync: false
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_ADMIN_NAME
+        value: "Lokale Administration"
